@@ -1,0 +1,27 @@
+Tower Dominion Leak Fix {version}
+=================================
+
+Unofficial community mod. Not made or endorsed by Parallel 45 Games, Broken Spear or Nvizzio Creations.
+Fixes two memory leaks that make long Tower Dominion games use more and more memory and stutter.
+
+Tested with: Tower Dominion Steam build 22911335 (Unity 2022.3.62f2), BepInEx 6.0.0-be.788 (IL2CPP).
+
+INSTALL
+-------
+1. Find the game folder: in Steam, right-click Tower Dominion > Manage > Browse local files.
+2. Extract this zip into that folder (next to tower-dominion.exe), merging folders.
+   - The "-with-BepInEx" zip contains BepInEx too. Use it if you don't have BepInEx installed.
+   - The "-plugins" zip contains only the two DLLs for BepInEx/plugins. Use it if you already have BepInEx 6 (IL2CPP).
+3. Launch the game from Steam as usual. The first launch with BepInEx takes a minute or two
+   while BepInEx generates its files. Later launches are normal speed.
+4. Check that it loaded: BepInEx/LogOutput.log should contain
+   "Loading [Enemy Pool Leak Fix" and "Loading [Unlock Condition Leak Fix".
+
+UNINSTALL
+---------
+- Remove just this mod: delete BepInEx/plugins/EnemyPoolLeakFix.dll and UnlockConditionLeakFix.dll.
+- Disable BepInEx without deleting it: set "enabled = false" in doorstop_config.ini.
+- Remove BepInEx entirely: delete winhttp.dll, doorstop_config.ini, .doorstop_version, changelog.txt,
+  and the dotnet and BepInEx folders. Verifying the game files in Steam won't remove them.
+
+Source code, details and issue tracker: see the project's GitHub page.

@@ -1,0 +1,42 @@
+<Project>
+  <!--
+    Shared build settings. The plugins compile against the BepInEx core assemblies and the Il2CppInterop
+    proxy assemblies that BepInEx generates in <game>/BepInEx/interop on its first launch, so install
+    BepInEx and run the game once before building.
+
+    Game folder: pass -p:GameDir="..." or set the TOWER_DOMINION_DIR environment variable.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <Version>1.1.0</Version>
+    <Authors>Tower Dominion community</Authors>
+    <GameDir Condition="'$(GameDir)' == ''">$(TOWER_DOMINION_DIR)</GameDir>
+    <GameDir Condition="'$(GameDir)' == '' And '$(OS)' == 'Windows_NT'">C:\Program Files (x86)\Steam\steamapps\common\Tower Dominion</GameDir>
+    <GameDir Condition="'$(GameDir)' == ''">/mnt/c/Program Files (x86)/Steam/steamapps/common/Tower Dominion</GameDir>
+    <BepInExDir>$(GameDir)/BepInEx</BepInExDir>
+    <!-- -p:Deploy=true copies the built plugin into <game>/BepInEx/plugins -->
+    <Deploy Condition="'$(Deploy)' == ''">false</Deploy>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="$(BepInExDir)/core/BepInEx.Core.dll" Private="false" />
+    <Reference Include="$(BepInExDir)/core/BepInEx.Unity.IL2CPP.dll" Private="false" />
+    <Reference Include="$(BepInExDir)/core/0Harmony.dll" Private="false" />
+    <Reference Include="$(BepInExDir)/core/Il2CppInterop.Runtime.dll" Private="false" />
+    <Reference Include="$(BepInExDir)/interop/Il2Cppmscorlib.dll" Private="false" />
+    <Reference Include="$(BepInExDir)/interop/Il2CppSystem.Core.dll" Private="false" />
+    <Reference Include="$(BepInExDir)/interop/UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="$(BepInExDir)/interop/Assembly-CSharp.dll" Private="false" />
+  </ItemGroup>
+
+  <Target Name="CheckGameDir" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(BepInExDir)/interop/Assembly-CSharp.dll')"
+           Text="BepInEx interop assemblies not found in '$(BepInExDir)/interop'. Install BepInEx 6 (IL2CPP), launch the game once, and/or set -p:GameDir=... or TOWER_DOMINION_DIR." />
+  </Target>
+
+  <Target Name="DeployPlugin" AfterTargets="Build" Condition="'$(Deploy)' == 'true'">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BepInExDir)/plugins" />
+  </Target>
+</Project>
