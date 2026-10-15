@@ -10,7 +10,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <Authors>Tower Dominion community</Authors>
     <GameDir Condition="'$(GameDir)' == ''">$(TOWER_DOMINION_DIR)</GameDir>
     <GameDir Condition="'$(GameDir)' == '' And '$(OS)' == 'Windows_NT'">C:\Program Files (x86)\Steam\steamapps\common\Tower Dominion</GameDir>
@@ -28,6 +28,7 @@
     <Reference Include="$(BepInExDir)/interop/Il2Cppmscorlib.dll" Private="false" />
     <Reference Include="$(BepInExDir)/interop/Il2CppSystem.Core.dll" Private="false" />
     <Reference Include="$(BepInExDir)/interop/UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="$(BepInExDir)/interop/UnityEngine.AudioModule.dll" Private="false" />
     <Reference Include="$(BepInExDir)/interop/Assembly-CSharp.dll" Private="false" />
   </ItemGroup>
 

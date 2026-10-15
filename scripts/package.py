@@ -18,7 +18,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PLUGINS = ["EnemyPoolLeakFix", "UnlockConditionLeakFix"]
+PLUGINS = ["EnemyPoolLeakFix", "UnlockConditionLeakFix", "AudioInstanceLeakFix", "ManagedDataCacheFix", "AssetUnloadThrottleFix"]
 
 BEPINEX_URL = ("https://builds.bepinex.dev/projects/bepinex_be/788/"
                "BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.788%2B5b766a3.zip")
