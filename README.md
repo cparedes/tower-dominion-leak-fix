@@ -7,6 +7,10 @@ stop playing, and selecting or deselecting a building causes a visible hitch.
 > Not made or endorsed by Parallel 45 Games, Broken Spear or Nvizzio Creations. Free, open source, and it
 > changes no gameplay. It only cleans up objects the game has already discarded and removes redundant work.
 
+> **AI-generated:** the investigation, code and documentation in this repository were produced with
+> [Claude](https://www.anthropic.com/claude) (Anthropic) using Claude Code, directed and play-tested by Ian Paredes.
+> See [How this was made](#how-this-was-made).
+
 Tested with Tower Dominion Steam build **22911335** (Unity 2022.3.62f2) and BepInEx **6.0.0-be.788** (IL2CPP).
 
 ## What it fixes
@@ -131,6 +135,21 @@ dotnet build -c Release                    # build
 dotnet build -c Release -p:Deploy=true     # build and copy into BepInEx/plugins
 python3 scripts/package.py                 # build both release zips into dist/
 ```
+
+## How this was made
+
+These fixes were found and written by Claude (Anthropic's AI model, running in Claude Code), working with
+Ian Paredes, who directed the work and play-tested every change. The process:
+
+- **Reverse engineering:** the game is IL2CPP, so there's no C# to read. Type, method and field layouts were recovered from
+  the game's metadata with Cpp2IL. Specific functions were then decompiled with Ghidra (via the REA MCP server) or
+  disassembled directly, to follow the code paths behind each bug.
+- **Measurement in the running game:** a separate diagnostic BepInEx plugin (not included) logged object and collection
+  counts, audio counters, frame hitches and per-method timings. A small native sampler captured main-thread call
+  stacks during long frames, resolved against Unity's public symbols. Each fix was verified with before/after numbers
+  from real play sessions (the tables above).
+
+Review the code before trusting it, as you would any third-party mod. Issues and corrections are welcome.
 
 ## License
 
