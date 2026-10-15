@@ -1,8 +1,12 @@
 <Project>
   <!--
-    Shared build settings. The plugins compile against the BepInEx core assemblies and the Il2CppInterop
-    proxy assemblies that BepInEx generates in <game>/BepInEx/interop on its first launch, so install
-    BepInEx and run the game once before building.
+    Shared build settings. Every fix is built for one loader at a time:
+
+      dotnet build -c Release                         # BepInEx 6 (IL2CPP)  -> bin/BepInEx/
+      dotnet build -c Release -p:Loader=MelonLoader   # MelonLoader 0.6+    -> bin/MelonLoader/
+
+    The plugins compile against the Il2CppInterop proxy assemblies the loader generates on its first launch
+    (BepInEx/interop or MelonLoader/Il2CppAssemblies), so install that loader and run the game once first.
 
     Game folder: pass -p:GameDir="..." or set the TOWER_DOMINION_DIR environment variable.
   -->
@@ -10,34 +14,67 @@
     <TargetFramework>net6.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     <Authors>Tower Dominion community</Authors>
+    <Loader Condition="'$(Loader)' == ''">BepInEx</Loader>
     <GameDir Condition="'$(GameDir)' == ''">$(TOWER_DOMINION_DIR)</GameDir>
     <GameDir Condition="'$(GameDir)' == '' And '$(OS)' == 'Windows_NT'">C:\Program Files (x86)\Steam\steamapps\common\Tower Dominion</GameDir>
     <GameDir Condition="'$(GameDir)' == ''">/mnt/c/Program Files (x86)/Steam/steamapps/common/Tower Dominion</GameDir>
-    <BepInExDir>$(GameDir)/BepInEx</BepInExDir>
-    <!-- -p:Deploy=true copies the built plugin into <game>/BepInEx/plugins -->
+    <!-- -p:Deploy=true copies the built plugin into the loader's plugin folder -->
     <Deploy Condition="'$(Deploy)' == ''">false</Deploy>
+    <BaseOutputPath>bin/$(Loader)/</BaseOutputPath>
+    <BaseIntermediateOutputPath>obj/$(Loader)/</BaseIntermediateOutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Loader)' == 'BepInEx'">
+    <DefineConstants>$(DefineConstants);BEPINEX</DefineConstants>
+    <CoreDir>$(GameDir)/BepInEx/core</CoreDir>
+    <InteropDir>$(GameDir)/BepInEx/interop</InteropDir>
+    <DeployDir>$(GameDir)/BepInEx/plugins</DeployDir>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Loader)' == 'MelonLoader'">
+    <DefineConstants>$(DefineConstants);MELONLOADER</DefineConstants>
+    <!-- MelonLoaderRefs: a folder containing MelonLoader/net6 and MelonLoader/Il2CppAssemblies (defaults to the game) -->
+    <MelonLoaderRefs Condition="'$(MelonLoaderRefs)' == ''">$(GameDir)</MelonLoaderRefs>
+    <CoreDir>$(MelonLoaderRefs)/MelonLoader/net6</CoreDir>
+    <InteropDir>$(MelonLoaderRefs)/MelonLoader/Il2CppAssemblies</InteropDir>
+    <DeployDir>$(GameDir)/Mods</DeployDir>
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="$(BepInExDir)/core/BepInEx.Core.dll" Private="false" />
-    <Reference Include="$(BepInExDir)/core/BepInEx.Unity.IL2CPP.dll" Private="false" />
-    <Reference Include="$(BepInExDir)/core/0Harmony.dll" Private="false" />
-    <Reference Include="$(BepInExDir)/core/Il2CppInterop.Runtime.dll" Private="false" />
-    <Reference Include="$(BepInExDir)/interop/Il2Cppmscorlib.dll" Private="false" />
-    <Reference Include="$(BepInExDir)/interop/Il2CppSystem.Core.dll" Private="false" />
-    <Reference Include="$(BepInExDir)/interop/UnityEngine.CoreModule.dll" Private="false" />
-    <Reference Include="$(BepInExDir)/interop/UnityEngine.AudioModule.dll" Private="false" />
-    <Reference Include="$(BepInExDir)/interop/Assembly-CSharp.dll" Private="false" />
+    <Compile Include="$(MSBuildThisFileDirectory)src/Common/Loader.cs" Link="Common/Loader.cs" />
   </ItemGroup>
 
-  <Target Name="CheckGameDir" BeforeTargets="ResolveAssemblyReferences">
-    <Error Condition="!Exists('$(BepInExDir)/interop/Assembly-CSharp.dll')"
-           Text="BepInEx interop assemblies not found in '$(BepInExDir)/interop'. Install BepInEx 6 (IL2CPP), launch the game once, and/or set -p:GameDir=... or TOWER_DOMINION_DIR." />
+  <ItemGroup Condition="'$(Loader)' == 'BepInEx'">
+    <Reference Include="$(CoreDir)/BepInEx.Core.dll" Private="false" />
+    <Reference Include="$(CoreDir)/BepInEx.Unity.IL2CPP.dll" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Loader)' == 'MelonLoader'">
+    <Reference Include="$(CoreDir)/MelonLoader.dll" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="$(CoreDir)/0Harmony.dll" Private="false" />
+    <Reference Include="$(CoreDir)/Il2CppInterop.Runtime.dll" Private="false" />
+    <Reference Include="$(InteropDir)/Il2Cppmscorlib.dll" Private="false" />
+    <Reference Include="$(InteropDir)/Il2CppSystem.Core.dll" Private="false" />
+    <Reference Include="$(InteropDir)/UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="$(InteropDir)/UnityEngine.AudioModule.dll" Private="false" />
+    <Reference Include="$(InteropDir)/Assembly-CSharp.dll" Private="false" />
+  </ItemGroup>
+
+  <Target Name="CheckLoader" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(Loader)' != 'BepInEx' And '$(Loader)' != 'MelonLoader'"
+           Text="Unknown Loader '$(Loader)'. Use -p:Loader=BepInEx or -p:Loader=MelonLoader." />
+    <Error Condition="!Exists('$(InteropDir)/Assembly-CSharp.dll')"
+           Text="$(Loader) interop assemblies not found in '$(InteropDir)'. Install $(Loader), launch the game once, and/or set -p:GameDir=... or TOWER_DOMINION_DIR." />
   </Target>
 
   <Target Name="DeployPlugin" AfterTargets="Build" Condition="'$(Deploy)' == 'true'">
-    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BepInExDir)/plugins" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(DeployDir)" />
   </Target>
 </Project>

@@ -1,6 +1,7 @@
 # Tower Dominion Leak Fix
 
-An unofficial community [BepInEx](https://github.com/BepInEx/BepInEx) mod pack that fixes memory leaks,
+An unofficial community mod pack for [BepInEx](https://github.com/BepInEx/BepInEx) **or**
+[MelonLoader](https://github.com/LavaGang/MelonLoader) that fixes memory leaks,
 silent sounds and stutters in **Tower Dominion**. Without it, long games use more and more memory, some UI sounds
 stop playing, and selecting or deselecting a building causes a visible hitch.
 
@@ -11,7 +12,8 @@ stop playing, and selecting or deselecting a building causes a visible hitch.
 > [Claude](https://www.anthropic.com/claude) (Anthropic) using Claude Code, directed and play-tested by Ian Paredes.
 > See [How this was made](#how-this-was-made).
 
-Tested with Tower Dominion Steam build **22911335** (Unity 2022.3.62f2) and BepInEx **6.0.0-be.788** (IL2CPP).
+Tested with Tower Dominion Steam build **22911335** (Unity 2022.3.62f2) on BepInEx **6.0.0-be.788** (IL2CPP) and
+MelonLoader **0.7.3**.
 
 ## What it fixes
 
@@ -88,21 +90,36 @@ Unity's own cleanup on scene changes is unaffected.
 
 ## Install
 
-1. Download a zip from [Releases](../../releases):
+Use **one** mod loader: BepInEx or MelonLoader, not both. In Steam, right-click Tower Dominion, then
+**Manage → Browse local files** to open the game folder (next to `tower-dominion.exe`).
+
+### BepInEx
+
+1. From [Releases](../../releases), download one of:
    - `…-with-BepInEx.zip`: includes BepInEx 6. Use this if you don't have BepInEx yet.
    - `…-plugins.zip`: only the five plugin DLLs, for an existing BepInEx 6 (IL2CPP) install.
-2. Steam: right-click Tower Dominion, then **Manage → Browse local files**. Extract the zip into that folder, next to `tower-dominion.exe`.
+2. Extract the zip into the game folder.
 3. Launch normally. The first BepInEx launch takes a minute or two.
 4. To check it loaded, look for `Loading [Enemy Pool Leak Fix` in `BepInEx/LogOutput.log`.
 
-Each fix is a separate DLL, so you can leave out any you don't want. Uninstall by deleting the DLLs from
-`BepInEx/plugins` (`EnemyPoolLeakFix`, `UnlockConditionLeakFix`, `AudioInstanceLeakFix`, `ManagedDataCacheFix`,
-`AssetUnloadThrottleFix`). To remove BepInEx too, delete `winhttp.dll`,
+### MelonLoader
+
+1. Install [MelonLoader](https://github.com/LavaGang/MelonLoader/releases) 0.6 or newer (tested with 0.7.3) and launch
+   the game once, so it generates its files.
+2. Download `…-melonloader.zip` from [Releases](../../releases) and extract it into the game folder. The five DLLs
+   go into `Mods/`.
+3. Launch. The MelonLoader console should list the five fixes and `5 Mods loaded.`
+
+Each fix is a separate DLL, so you can leave out any you don't want. Uninstall by deleting the DLLs
+(`EnemyPoolLeakFix`, `UnlockConditionLeakFix`, `AudioInstanceLeakFix`, `ManagedDataCacheFix`,
+`AssetUnloadThrottleFix`) from `BepInEx/plugins` or `Mods/`. To remove BepInEx too, delete `winhttp.dll`,
 `doorstop_config.ini`, `.doorstop_version`, `changelog.txt`, `dotnet/` and `BepInEx/`.
 
 ## Configuration
 
-Settings are written on first launch to `BepInEx/config/community.towerdominion.*.cfg`:
+Settings are written on first launch: on BepInEx to `BepInEx/config/community.towerdominion.*.cfg`, and on
+MelonLoader to `UserData/MelonPreferences.cfg` (sections `[community_towerdominion_*]`, keys `Section_Setting`,
+e.g. `General_MinIntervalSeconds`):
 
 | File | Setting | Default | Meaning |
 |---|---|---|---|
@@ -125,15 +142,21 @@ Settings are written on first launch to `BepInEx/config/community.towerdominion.
 
 ## Building
 
-Requirements: .NET SDK 6.0+, and a game install with BepInEx 6 (IL2CPP) that has been launched once, so
-`BepInEx/interop/` exists. The plugins compile against those generated assemblies, which are not included here.
+Requirements: .NET SDK 6.0+, and the interop assemblies each loader generates on its first launch
+(`BepInEx/interop/` or `MelonLoader/Il2CppAssemblies/`). The plugins compile against those, and they're not
+included here. Every fix is one source file built for either loader: `src/Common/Loader.cs` maps settings,
+logging and per-frame updates to BepInEx (`BasePlugin`) or MelonLoader (`MelonMod`). MelonLoader builds use the
+`Il2Cpp`-prefixed game namespaces.
 
 ```bash
 # point the build at your game install (default: the standard Steam path)
 export TOWER_DOMINION_DIR="/path/to/Tower Dominion"
-dotnet build -c Release                    # build
-dotnet build -c Release -p:Deploy=true     # build and copy into BepInEx/plugins
-python3 scripts/package.py                 # build both release zips into dist/
+dotnet build -c Release                                  # BepInEx build      -> src/*/bin/BepInEx/
+dotnet build -c Release -p:Loader=MelonLoader            # MelonLoader build  -> src/*/bin/MelonLoader/
+dotnet build -c Release -p:Deploy=true                   # build and copy into BepInEx/plugins (or Mods/)
+# MelonLoader refs from another folder (containing MelonLoader/net6 and MelonLoader/Il2CppAssemblies):
+dotnet build -c Release -p:Loader=MelonLoader -p:MelonLoaderRefs=/path/to/refs
+python3 scripts/package.py [--melonloader-refs DIR]      # all three release zips into dist/
 ```
 
 ## How this was made

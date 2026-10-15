@@ -1,14 +1,40 @@
 using System;
 using System.Collections.Generic;
-using BepInEx;
-using BepInEx.Configuration;
-using BepInEx.Logging;
-using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
-using Nvizzio.Core.Audio;
+using TowerDominionFixes;
 using UnityEngine;
+#if MELONLOADER
+using Il2CppNvizzio.Core.Audio;
+#else
+using Nvizzio.Core.Audio;
+#endif
+
+#if MELONLOADER
+[assembly: MelonLoader.MelonInfo(typeof(AudioInstanceLeakFix.Mod), AudioInstanceLeakFix.Info.Name, AudioInstanceLeakFix.Info.Version, "Tower Dominion community")]
+[assembly: MelonLoader.MelonGame("Parallel45", "tower-dominion")]
+[assembly: MelonLoader.HarmonyDontPatchAll]
+#endif
 
 namespace AudioInstanceLeakFix;
+
+#if BEPINEX
+[BepInEx.BepInPlugin(Info.Guid, Info.Name, Info.Version)]
+public class Plugin : TowerDominionFixes.BepInExEntry<Fix, Driver> { }
+public class Driver : UnityEngine.MonoBehaviour
+{
+    public Driver(System.IntPtr ptr) : base(ptr) { }
+    private void Update() => Plugin.Fix.Tick();
+}
+#else
+public class Mod : TowerDominionFixes.MelonEntry<Fix> { }
+#endif
+
+internal static class Info
+{
+    public const string Guid = "community.towerdominion.audioinstanceleakfix";
+    public const string Name = "Audio Instance Leak Fix";
+    public const string Version = "1.3.0";
+}
 
 // AudioEventBase caps simultaneous instances per clip with a static counter
 // (audioClipInstancesPlaying: clip name -> Tuple(max, playing)). Two bugs make the counter drift:
@@ -19,34 +45,75 @@ namespace AudioInstanceLeakFix;
 //     is never unregistered. UI sounds on panels/buttons that hide on click leak this way until the counter reaches
 //     the cap, after which the sound never plays again (e.g. tile reroll).
 //
-// This plugin records which clip each event registered, makes Unregister decrement that clip at most once (never
+// This fix records which clip each event registered, makes Unregister decrement that clip at most once (never
 // below zero), and every second releases registrations whose event was destroyed, deactivated, or stopped playing.
-[BepInPlugin(Guid, "Audio Instance Leak Fix", "1.0.0")]
-public class Plugin : BasePlugin
+public class Fix : IFix
 {
-    public const string Guid = "community.towerdominion.audioinstanceleakfix";
+    public string Id => Info.Guid;
+    public bool NeedsTick => true;
 
-    internal static ManualLogSource Logger;
-    internal static ConfigEntry<float> SweepSeconds;
-    internal static ConfigEntry<bool> LogReleases;
-    internal static ConfigEntry<float> SilentGraceSeconds;
+    internal static Setting<float> SweepSeconds;
+    internal static Setting<float> SilentGraceSeconds;
+    internal static Setting<bool> LogReleases;
+    private float next;
 
-    public override void Load()
+    public void Init(HarmonyLib.Harmony harmony)
     {
-        Logger = Log;
-        SweepSeconds = Config.Bind("General", "SweepSeconds", 1f, "Seconds between sweeps for orphaned sound instances.");
-        SilentGraceSeconds = Config.Bind("General", "SilentGraceSeconds", 5f,
+        SweepSeconds = Host.Bind("General", "SweepSeconds", 1f, "Seconds between sweeps for orphaned sound instances.");
+        SilentGraceSeconds = Host.Bind("General", "SilentGraceSeconds", 5f,
             "Release a registration whose event still claims to be playing after its AudioSource has been silent this long " +
             "(covers objects that were deactivated and re-activated between sweeps; leaves room for delayed starts).");
-        LogReleases = Config.Bind("Debug", "LogReleases", true, "Log orphaned sound instances released by the sweep.");
-        new Harmony(Guid).PatchAll(typeof(AudioPatches));
-        AddComponent<Sweeper>();
+        LogReleases = Host.Bind("Debug", "LogReleases", true, "Log orphaned sound instances released by the sweep.");
+        harmony.PatchAll(typeof(AudioPatches));
+    }
+
+    public void Tick()
+    {
+        if (Time.unscaledTime < next) return;
+        next = Time.unscaledTime + SweepSeconds.Value;
+
+        var released = new Dictionary<string, int>();
+        for (var i = Registry.Outstanding.Count - 1; i >= 0; i--)
+        {
+            var r = Registry.Outstanding[i];
+            if (!IsOrphaned(r)) continue;
+            Registry.Adjust(r.ClipKey, -1);
+            Registry.Outstanding.RemoveAt(i);
+            released[r.ClipKey] = released.GetValueOrDefault(r.ClipKey) + 1;
+            Registry.Released++;
+        }
+
+        if (released.Count > 0 && LogReleases.Value)
+            Host.Info($"Released {string.Join(", ", released)} orphaned sound instance(s) (total {Registry.Released})");
+    }
+
+    private static bool IsOrphaned(Registry.Registration r)
+    {
+        try
+        {
+            var e = r.Event;
+            if (e == null) return true;                                 // destroyed (Unity null check)
+            if (!e.gameObject.activeInHierarchy) return true;           // its finish coroutine can't run any more
+            var source = e.targetSource;
+            if (source == null) return true;
+            if (e.isPaused || source.isPlaying) { r.SilentSince = -1f; return false; }
+            if (!e.isPlaying) return true;                              // stopped without FinishEvent
+
+            // Event says playing but the source is silent: normal briefly (end-of-clip wait, delayed start);
+            // persistent silence means its finish coroutine is gone.
+            if (r.SilentSince < 0f) r.SilentSince = Time.unscaledTime;
+            return Time.unscaledTime - r.SilentSince > SilentGraceSeconds.Value;
+        }
+        catch
+        {
+            return true;                                                // proxy no longer valid
+        }
     }
 }
 
 internal static class Registry
 {
-    // One entry per outstanding registration: the event (weak, by pointer) and the clip key it incremented.
+    // One entry per outstanding registration: the event (by pointer) and the clip key it incremented.
     internal sealed class Registration
     {
         public IntPtr EventPtr;
@@ -103,55 +170,5 @@ internal static class AudioPatches
             Registry.Outstanding.RemoveAt(index);
         }
         return false;
-    }
-}
-
-public class Sweeper : MonoBehaviour
-{
-    private float next;
-
-    public Sweeper(IntPtr ptr) : base(ptr) { }
-
-    private void Update()
-    {
-        if (Time.unscaledTime < next) return;
-        next = Time.unscaledTime + Plugin.SweepSeconds.Value;
-
-        var released = new Dictionary<string, int>();
-        for (var i = Registry.Outstanding.Count - 1; i >= 0; i--)
-        {
-            var r = Registry.Outstanding[i];
-            if (!IsOrphaned(r)) continue;
-            Registry.Adjust(r.ClipKey, -1);
-            Registry.Outstanding.RemoveAt(i);
-            released[r.ClipKey] = released.GetValueOrDefault(r.ClipKey) + 1;
-            Registry.Released++;
-        }
-
-        if (released.Count > 0 && Plugin.LogReleases.Value)
-            Plugin.Logger.LogInfo($"Released {string.Join(", ", released)} orphaned sound instance(s) (total {Registry.Released})");
-    }
-
-    private static bool IsOrphaned(Registry.Registration r)
-    {
-        try
-        {
-            var e = r.Event;
-            if (e == null) return true;                                 // destroyed (Unity null check)
-            if (!e.gameObject.activeInHierarchy) return true;           // its finish coroutine can't run any more
-            var source = e.targetSource;
-            if (source == null) return true;
-            if (e.isPaused || source.isPlaying) { r.SilentSince = -1f; return false; }
-            if (!e.isPlaying) return true;                              // stopped without FinishEvent
-
-            // Event says playing but the source is silent: normal briefly (end-of-clip wait, delayed start);
-            // persistent silence means its finish coroutine is gone.
-            if (r.SilentSince < 0f) r.SilentSince = Time.unscaledTime;
-            return Time.unscaledTime - r.SilentSince > Plugin.SilentGraceSeconds.Value;
-        }
-        catch
-        {
-            return true;                                                // proxy no longer valid
-        }
     }
 }

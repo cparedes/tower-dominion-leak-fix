@@ -1,36 +1,57 @@
 using System;
 using System.Collections.Generic;
-using BepInEx;
-using BepInEx.Configuration;
-using BepInEx.Logging;
-using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
-using UPool;
+using TowerDominionFixes;
 using Object = UnityEngine.Object;
+#if MELONLOADER
+using Il2CppUPool;
+#else
+using UPool;
+#endif
+
+#if MELONLOADER
+[assembly: MelonLoader.MelonInfo(typeof(EnemyPoolLeakFix.Mod), EnemyPoolLeakFix.Info.Name, EnemyPoolLeakFix.Info.Version, "Tower Dominion community")]
+[assembly: MelonLoader.MelonGame("Parallel45", "tower-dominion")]
+[assembly: MelonLoader.HarmonyDontPatchAll]
+#endif
 
 namespace EnemyPoolLeakFix;
+
+#if BEPINEX
+[BepInEx.BepInPlugin(Info.Guid, Info.Name, Info.Version)]
+public class Plugin : TowerDominionFixes.BepInExEntry<Fix, Driver> { }
+public class Driver : UnityEngine.MonoBehaviour { public Driver(System.IntPtr ptr) : base(ptr) { } }
+#else
+public class Mod : TowerDominionFixes.MelonEntry<Fix> { }
+#endif
+
+internal static class Info
+{
+    public const string Guid = "community.towerdominion.enemypoolleakfix";
+    public const string Name = "Enemy Pool Leak Fix";
+    public const string Version = "1.3.0";
+}
 
 // Every wave, EnemySwarmService.FillEnemyPools -> CleanLastPoolOfEnemies -> PoolManager.SetPoolCountTo resizes
 // the enemy pools (to 0 for enemy types absent from the new wave). AbstractPool.SetPoolSize/ShrinkPool drop idle
 // objects from the pool and call IPoolable.Destroy() on them, but CharacterEntity.Destroy() is an empty method,
 // so the enemy GameObjects (with their VFX slots, materials and audio sources) are orphaned in the scene forever.
 //
-// This plugin destroys the GameObjects that a pool resize removed from the pool (enemies and any other pooled component).
+// This fix destroys the GameObjects that a pool resize removed from the pool (enemies and any other pooled component).
 // (CharacterEntity.Destroy itself can't be patched: its native body is a `ret` stub shared by ~4,400 methods.)
-[BepInPlugin(Guid, "Enemy Pool Leak Fix", "1.1.0")]
-public class Plugin : BasePlugin
+public class Fix : IFix
 {
-    public const string Guid = "community.towerdominion.enemypoolleakfix";
+    public string Id => Info.Guid;
+    public bool NeedsTick => false;
+    public void Tick() { }
 
-    internal static ManualLogSource Logger;
-    internal static ConfigEntry<bool> LogDestroyed;
+    internal static Setting<bool> LogDestroyed;
     internal static long TotalDestroyed;
 
-    public override void Load()
+    public void Init(HarmonyLib.Harmony harmony)
     {
-        Logger = Log;
-        LogDestroyed = Config.Bind("Debug", "LogDestroyed", true, "Log how many orphaned enemies each pool resize destroys.");
-        new Harmony(Guid).PatchAll(typeof(PoolPatches));
+        LogDestroyed = Host.Bind("Debug", "LogDestroyed", true, "Log how many orphaned objects each pool resize destroys.");
+        harmony.PatchAll(typeof(PoolPatches));
     }
 }
 
@@ -78,8 +99,8 @@ internal static class PoolPatches
             destroyed++;
         }
 
-        Plugin.TotalDestroyed += destroyed;
-        if (destroyed > 0 && Plugin.LogDestroyed.Value)
-            Plugin.Logger.LogInfo($"Destroyed {destroyed} orphaned pooled objects from pool shrink (total {Plugin.TotalDestroyed})");
+        Fix.TotalDestroyed += destroyed;
+        if (destroyed > 0 && Fix.LogDestroyed.Value)
+            Host.Info($"Destroyed {destroyed} orphaned pooled objects from pool shrink (total {Fix.TotalDestroyed})");
     }
 }

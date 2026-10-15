@@ -3,9 +3,10 @@
 
   dist/TowerDominion-LeakFix-<version>-plugins.zip       for players who already have BepInEx 6 (IL2CPP)
   dist/TowerDominion-LeakFix-<version>-with-BepInEx.zip  BepInEx 6 be.788 + plugins; extract into the game folder
+  dist/TowerDominion-LeakFix-<version>-melonloader.zip   the same fixes built for MelonLoader (Mods/*.dll)
 
-Usage: python3 scripts/package.py [--bepinex-zip PATH] [--skip-build]
-Requires the .NET SDK and a game install with BepInEx interop assemblies (see README "Building").
+Usage: python3 scripts/package.py [--bepinex-zip PATH] [--skip-build] [--melonloader-refs DIR]
+Requires the .NET SDK and interop assemblies for both loaders (see README "Building").
 """
 import argparse
 import hashlib
@@ -41,18 +42,30 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--bepinex-zip", type=Path, help="local copy of the BepInEx be.788 zip (skips download)")
     parser.add_argument("--skip-build", action="store_true")
+    parser.add_argument("--melonloader-refs", type=Path,
+                        help="folder with MelonLoader/net6 + MelonLoader/Il2CppAssemblies (default: the game install)")
     args = parser.parse_args()
 
     ver = version()
     if not args.skip_build:
-        subprocess.run(["dotnet", "build", str(ROOT / "TowerDominionLeakFix.sln"), "-c", "Release"], check=True)
+        sln = str(ROOT / "TowerDominionLeakFix.sln")
+        subprocess.run(["dotnet", "build", sln, "-c", "Release", "-p:Loader=BepInEx"], check=True)
+        ml = ["dotnet", "build", sln, "-c", "Release", "-p:Loader=MelonLoader"]
+        if args.melonloader_refs:
+            ml.append(f"-p:MelonLoaderRefs={args.melonloader_refs}")
+        subprocess.run(ml, check=True)
 
-    dlls = {}
-    for name in PLUGINS:
-        dll = ROOT / "src" / name / "bin" / "Release" / "net6.0" / f"{name}.dll"
-        if not dll.exists():
-            sys.exit(f"missing build output: {dll}")
-        dlls[name] = dll.read_bytes()
+    def outputs(loader: str) -> dict:
+        found = {}
+        for name in PLUGINS:
+            dll = ROOT / "src" / name / "bin" / loader / "Release" / f"{name}.dll"
+            if not dll.exists():
+                sys.exit(f"missing build output: {dll}")
+            found[name] = dll.read_bytes()
+        return found
+
+    dlls = outputs("BepInEx")
+    melon_dlls = outputs("MelonLoader")
 
     bepinex = args.bepinex_zip.read_bytes() if args.bepinex_zip else fetch(BEPINEX_URL)
     digest = hashlib.sha256(bepinex).hexdigest()
@@ -84,7 +97,14 @@ def main() -> int:
         z.writestr("BepInEx/LICENSE-BepInEx.txt", bepinex_license)
         add_plugins(z)
 
-    for path in (plugins_zip, full_zip):
+    melon_zip = dist / f"TowerDominion-LeakFix-{ver}-melonloader.zip"
+    with zipfile.ZipFile(melon_zip, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, data in melon_dlls.items():
+            z.writestr(f"Mods/{name}.dll", data)
+        z.writestr("TowerDominion-LeakFix-README.txt", readme)
+        z.writestr("TowerDominion-LeakFix-LICENSE.txt", license_text)
+
+    for path in (plugins_zip, full_zip, melon_zip):
         sha = hashlib.sha256(path.read_bytes()).hexdigest()
         print(f"{path.relative_to(ROOT)}  {path.stat().st_size:,} bytes  sha256 {sha}")
     return 0

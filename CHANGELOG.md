@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0
+- MelonLoader support: every fix is now also built as a MelonLoader mod (`…-melonloader.zip`, DLLs go in `Mods/`),
+  tested with MelonLoader 0.7.3. Settings live in `UserData/MelonPreferences.cfg`.
+- Internal: fixes share one source per loader through `src/Common/Loader.cs`. No behaviour changes on BepInEx.
+
 ## 1.2.0
 - AudioInstanceLeakFix: sounds no longer go silent in long sessions (stuck per-clip instance counters).
 - ManagedDataCacheFix: cache the game's settings data instead of reloading and walking it on every read. Removes
