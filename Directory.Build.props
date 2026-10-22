@@ -14,7 +14,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <Version>1.3.0</Version>
+    <Version>1.4.0</Version>
     <Authors>Tower Dominion community</Authors>
     <Loader Condition="'$(Loader)' == ''">BepInEx</Loader>
     <GameDir Condition="'$(GameDir)' == ''">$(TOWER_DOMINION_DIR)</GameDir>

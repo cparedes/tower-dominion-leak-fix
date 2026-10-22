@@ -37,7 +37,7 @@ internal static class Info
 {
     public const string Guid = "community.towerdominion.unlockconditionleakfix";
     public const string Name = "Unlock Condition Leak Fix";
-    public const string Version = "1.3.0";
+    public const string Version = "1.4.0";
 }
 
 // UnlockConditionSaveData registers itself with MessageRelay in its constructor and only unregisters in

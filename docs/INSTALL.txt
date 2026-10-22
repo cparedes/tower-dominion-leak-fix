@@ -2,7 +2,7 @@ Tower Dominion Leak Fix {version}
 =================================
 
 Unofficial community mod. Not made or endorsed by Parallel 45 Games, Broken Spear or Nvizzio Creations.
-Fixes memory leaks, sounds going silent, and selection stutters in Tower Dominion.
+Fixes memory leaks, frame-rate loss in long games, sounds going silent, and selection stutters in Tower Dominion.
 
 Tested with: Tower Dominion Steam build 22911335 (Unity 2022.3.62f2), BepInEx 6.0.0-be.788 (IL2CPP),
 MelonLoader 0.7.3. Use one loader, not both.
@@ -12,19 +12,19 @@ INSTALL
 1. Find the game folder: in Steam, right-click Tower Dominion > Manage > Browse local files.
 2. Extract this zip into that folder (next to tower-dominion.exe), merging folders.
    - The "-with-BepInEx" zip contains BepInEx too. Use it if you don't have BepInEx installed.
-   - The "-plugins" zip contains only the five DLLs for BepInEx/plugins. Use it if you already have BepInEx 6 (IL2CPP).
+   - The "-plugins" zip contains only the six DLLs for BepInEx/plugins. Use it if you already have BepInEx 6 (IL2CPP).
    - The "-melonloader" zip is for MelonLoader (0.6+): install MelonLoader, launch the game once, then extract
      this zip into the game folder (the DLLs go into Mods/).
 3. Launch the game from Steam as usual. The first launch with BepInEx takes a minute or two
    while BepInEx generates its files. Later launches are normal speed.
-4. Check that it loaded: BepInEx/LogOutput.log (or the MelonLoader console: "5 Mods loaded.") should contain
+4. Check that it loaded: BepInEx/LogOutput.log (or the MelonLoader console: "6 Mods loaded.") should contain
    a "Loading [...]" line for each fix (Enemy Pool Leak Fix, Unlock Condition Leak Fix, Audio Instance
-   Leak Fix, Managed Data Cache Fix, Asset Unload Throttle Fix).
+   Leak Fix, Managed Data Cache Fix, Asset Unload Throttle Fix, Area Of Effect Leak Fix).
 
 UNINSTALL
 ---------
 - Remove just this mod: delete EnemyPoolLeakFix.dll, UnlockConditionLeakFix.dll, AudioInstanceLeakFix.dll,
-  ManagedDataCacheFix.dll and AssetUnloadThrottleFix.dll from BepInEx/plugins (or Mods/ on MelonLoader).
+  ManagedDataCacheFix.dll, AssetUnloadThrottleFix.dll and AreaOfEffectLeakFix.dll from BepInEx/plugins (or Mods/ on MelonLoader).
   Each fix is independent.
 - Disable BepInEx without deleting it: set "enabled = false" in doorstop_config.ini.
 - Remove BepInEx entirely: delete winhttp.dll, doorstop_config.ini, .doorstop_version, changelog.txt,

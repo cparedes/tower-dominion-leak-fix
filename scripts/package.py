@@ -19,7 +19,8 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PLUGINS = ["EnemyPoolLeakFix", "UnlockConditionLeakFix", "AudioInstanceLeakFix", "ManagedDataCacheFix", "AssetUnloadThrottleFix"]
+PLUGINS = ["EnemyPoolLeakFix", "UnlockConditionLeakFix", "AudioInstanceLeakFix", "ManagedDataCacheFix", "AssetUnloadThrottleFix",
+           "AreaOfEffectLeakFix"]
 
 BEPINEX_URL = ("https://builds.bepinex.dev/projects/bepinex_be/788/"
                "BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.788%2B5b766a3.zip")
@@ -34,7 +35,9 @@ def version() -> str:
 
 def fetch(url: str) -> bytes:
     print(f"downloading {url}")
-    with urllib.request.urlopen(url) as response:
+    # builds.bepinex.dev rejects urllib's default User-Agent with 403.
+    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (tower-dominion-leakfix packager)"})
+    with urllib.request.urlopen(request) as response:
         return response.read()
 
 

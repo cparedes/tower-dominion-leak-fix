@@ -2,8 +2,8 @@
 
 An unofficial community mod pack for [BepInEx](https://github.com/BepInEx/BepInEx) **or**
 [MelonLoader](https://github.com/LavaGang/MelonLoader) that fixes memory leaks,
-silent sounds and stutters in **Tower Dominion**. Without it, long games use more and more memory, some UI sounds
-stop playing, and selecting or deselecting a building causes a visible hitch.
+silent sounds and stutters in **Tower Dominion**. Without it, long games use more and more memory, the frame rate
+sinks as a game goes on, some UI sounds stop playing, and selecting or deselecting a building causes a visible hitch.
 
 > Not made or endorsed by Parallel 45 Games, Broken Spear or Nvizzio Creations. Free, open source, and it
 > changes no gameplay. It only cleans up objects the game has already discarded and removes redundant work.
@@ -91,6 +91,27 @@ Unity's own cleanup on scene changes is unaffected.
 | Frames ≥ 25 ms per minute | 6.8 | **1.1** |
 | Worst frame | 214 ms | **45 ms** |
 
+### 6. Frame rate drops over long games (`AreaOfEffectLeakFix`)
+
+When a bomb lands, it spawns an area-of-effect object that plays an impact sound. Cleaning up the bomb also makes the
+game stop tracking that area-of-effect object. When the sound ends a few seconds later, the object asks to be
+deleted. The game ignores the request because it no longer tracks the object, and the object never asks again. So
+every bomb impact leaves one live object behind, with an audio source.
+
+Unity's audio mixer checks every audio source that has played, every frame. The cost of that check grows with the
+square of their number. After about an hour of bomber waves, the main thread spent around 80% of its time on it.
+That's the "lag in long games": the GPU sits mostly idle while the frame rate drops.
+
+The mod notices the ignored deletion request. On the next frame, outside the game's own update loops, it hands the
+object back to the game's normal cleanup, which returns it to its pool. Objects the game has already recycled are
+left alone.
+
+| Measured in play | Without the fix | With the fix |
+|---|---|---|
+| Leftover bomb objects | 348 after 16 min (1,518 after 10.5 min in a bomb-heavy game) | **0** (6–38 live, all in use or pooled) |
+| Main-thread time in the audio mixer check | 6–10% from 15 min on; ~80% after 67 min | **0–2%** over 58 min |
+| Objects handed back for cleanup | — | 4,351 in 58 min |
+
 ## Install
 
 Use **one** mod loader: BepInEx or MelonLoader, not both. In Steam, right-click Tower Dominion, then
@@ -100,7 +121,7 @@ Use **one** mod loader: BepInEx or MelonLoader, not both. In Steam, right-click 
 
 1. From [Releases](../../releases), download one of:
    - `…-with-BepInEx.zip`: includes BepInEx 6. Use this if you don't have BepInEx yet.
-   - `…-plugins.zip`: only the five plugin DLLs, for an existing BepInEx 6 (IL2CPP) install.
+   - `…-plugins.zip`: only the six plugin DLLs, for an existing BepInEx 6 (IL2CPP) install.
 2. Extract the zip into the game folder.
 3. Launch normally. The first BepInEx launch takes a minute or two.
 4. To check it loaded, look for `Loading [Enemy Pool Leak Fix` in `BepInEx/LogOutput.log`.
@@ -109,13 +130,13 @@ Use **one** mod loader: BepInEx or MelonLoader, not both. In Steam, right-click 
 
 1. Install [MelonLoader](https://github.com/LavaGang/MelonLoader/releases) 0.6 or newer (tested with 0.7.3) and launch
    the game once, so it generates its files.
-2. Download `…-melonloader.zip` from [Releases](../../releases) and extract it into the game folder. The five DLLs
+2. Download `…-melonloader.zip` from [Releases](../../releases) and extract it into the game folder. The six DLLs
    go into `Mods/`.
-3. Launch. The MelonLoader console should list the five fixes and `5 Mods loaded.`
+3. Launch. The MelonLoader console should list the six fixes and `6 Mods loaded.`
 
 Each fix is a separate DLL, so you can leave out any you don't want. Uninstall by deleting the DLLs
 (`EnemyPoolLeakFix`, `UnlockConditionLeakFix`, `AudioInstanceLeakFix`, `ManagedDataCacheFix`,
-`AssetUnloadThrottleFix`) from `BepInEx/plugins` or `Mods/`. To remove BepInEx too, delete `winhttp.dll`,
+`AssetUnloadThrottleFix`, `AreaOfEffectLeakFix`) from `BepInEx/plugins` or `Mods/`. To remove BepInEx too, delete `winhttp.dll`,
 `doorstop_config.ini`, `.doorstop_version`, `changelog.txt`, `dotnet/` and `BepInEx/`.
 
 ## Configuration
@@ -134,6 +155,7 @@ e.g. `General_MinIntervalSeconds`):
 | `…manageddatacachefix.cfg` | `RefreshSeconds` | `0` | Also re-run the original load and cleanup this often (0 = only on first use, unload, scene load) |
 | `…assetunloadthrottlefix.cfg` | `MinIntervalSeconds` | `300` | Minimum seconds between real asset unloads (0 = never skip) |
 | `…assetunloadthrottlefix.cfg` | `LogSkips` | `true` | Log a running count of skipped unloads |
+| `…areaofeffectleakfix.cfg` | `LogRequeued` | `true` | Log (at most once a minute) how many leftover area-of-effect objects were handed back for cleanup |
 
 ## Compatibility
 
@@ -172,7 +194,9 @@ Ian Paredes, who directed the work and play-tested every change. The process:
   disassembled directly, to follow the code paths behind each bug.
 - **Measurement in the running game:** a separate diagnostic BepInEx plugin (not included) logged object and collection
   counts, audio counters, frame hitches and per-method timings. A small native sampler captured main-thread call
-  stacks during long frames, resolved against Unity's public symbols. Each fix was verified with before/after numbers
+  stacks during long frames, resolved against Unity's public symbols. For the long-game frame-rate loss, an external
+  sampler read the main thread's stack (and registers) from outside the running game, and a census plugin counted
+  live audio sources by owner. Each fix was verified with before/after numbers
   from real play sessions (the tables above).
 
 Review the code before trusting it, as you would any third-party mod. Issues and corrections are welcome.

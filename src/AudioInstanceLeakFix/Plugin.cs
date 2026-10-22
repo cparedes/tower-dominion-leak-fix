@@ -33,7 +33,7 @@ internal static class Info
 {
     public const string Guid = "community.towerdominion.audioinstanceleakfix";
     public const string Name = "Audio Instance Leak Fix";
-    public const string Version = "1.3.0";
+    public const string Version = "1.4.0";
 }
 
 // AudioEventBase caps simultaneous instances per clip with a static counter

@@ -22,7 +22,7 @@ internal static class Info
 {
     public const string Guid = "community.towerdominion.assetunloadthrottlefix";
     public const string Name = "Asset Unload Throttle Fix";
-    public const string Version = "1.3.0";
+    public const string Version = "1.4.0";
 }
 
 // Copper.ViewManager's ResourceViewLoader.DestroyView (RVA 0x88BC60) calls Resources.UnloadUnusedAssets() every

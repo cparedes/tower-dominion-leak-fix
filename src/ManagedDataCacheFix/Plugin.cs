@@ -28,7 +28,7 @@ internal static class Info
 {
     public const string Guid = "community.towerdominion.manageddatacachefix";
     public const string Name = "Managed Data Cache Fix";
-    public const string Version = "1.3.0";
+    public const string Version = "1.4.0";
 }
 
 // ManagedDataHandler.DataResources (getter RVA 0x57F300) never checks its cached static field: every access does

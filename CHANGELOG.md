@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0
+- AreaOfEffectLeakFix (new): fixes the frame rate sinking over long games. Bomb impacts left one live area-of-effect
+  object (with an audio source) behind each, because the game had stopped tracking the object before the object asked
+  to be deleted. Unity's audio mixer then spent more and more of every frame scanning those audio sources (~80% of the
+  main thread after about an hour). The fix hands the leftover objects back to the game's normal cleanup. In testing:
+  0 leftover objects and 0–2% mixer cost over 58 min, versus 348 objects and 6–10% of the main thread after 16 min without it.
+
 ## 1.3.0
 - MelonLoader support: every fix is now also built as a MelonLoader mod (`…-melonloader.zip`, DLLs go in `Mods/`),
   tested with MelonLoader 0.7.3. Settings live in `UserData/MelonPreferences.cfg`.

@@ -29,7 +29,7 @@ internal static class Info
 {
     public const string Guid = "community.towerdominion.enemypoolleakfix";
     public const string Name = "Enemy Pool Leak Fix";
-    public const string Version = "1.3.0";
+    public const string Version = "1.4.0";
 }
 
 // Every wave, EnemySwarmService.FillEnemyPools -> CleanLastPoolOfEnemies -> PoolManager.SetPoolCountTo resizes
