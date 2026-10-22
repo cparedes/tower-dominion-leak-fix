@@ -1,0 +1,1 @@
+Fixes the frame rate sinking in long games, building-select stutters, post-deselect hitches, UI sounds going silent, and memory leaks. 6 independent fixes, no gameplay changes. For BepInEx 6 or MelonLoader. AI-generated code; open source (MIT).

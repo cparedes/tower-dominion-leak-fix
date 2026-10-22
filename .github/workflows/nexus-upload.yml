@@ -1,0 +1,120 @@
+# Uploads a GitHub release's three zips to the Nexus Mods page as new versions of the existing file entries.
+#
+# The zips can't be built in CI (that needs the game's IL2CPP interop assemblies), so this uploads the assets that
+# scripts/package.py produced and that are attached to the release.
+#
+# One-time setup (Settings → Secrets and variables → Actions):
+#   secret   NEXUSMODS_API_KEY            personal API key from Nexus Mods → Site preferences → API keys
+#   variable NEXUS_MOD_ID                 the mod's ID, and the file IDs of the existing entries, as shown by the
+#   variable NEXUS_FILE_ID_MELONLOADER      "Advanced" option on the mod page's Files tab (or the edit menu on
+#   variable NEXUS_FILE_ID_PLUGINS          Manage Files). These are long API IDs, not the number in the page URL
+#   variable NEXUS_FILE_ID_BUNDLE           (towerdominion/mods/8).
+# Optionally add an environment named "nexus" with required reviewers to approve each upload.
+name: Upload to Nexus Mods
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to upload (e.g. v1.4.0)
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexus-upload
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    environment: nexus
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        include:
+          - asset: melonloader
+            file_id_var: NEXUS_FILE_ID_MELONLOADER
+            display_name: MelonLoader version
+            description: >-
+              For MelonLoader 0.6+ (tested 0.7.3). Install MelonLoader, launch the game once, then extract this
+              into the game folder (DLLs go into Mods/).
+            primary: true
+          - asset: plugins
+            file_id_var: NEXUS_FILE_ID_PLUGINS
+            display_name: BepInEx version
+            description: >-
+              For an existing BepInEx 6 IL2CPP install (tested 6.0.0-be.788). Extract into the game folder
+              (DLLs go into BepInEx/plugins/).
+            primary: false
+          - asset: with-BepInEx
+            file_id_var: NEXUS_FILE_ID_BUNDLE
+            display_name: BepInEx bundle (includes BepInEx 6)
+            description: >-
+              BepInEx 6.0.0-be.788 (IL2CPP, LGPL-2.1, license included) plus the fixes. Extract into the game
+              folder. Use this if you don't have a mod loader yet.
+            primary: false
+    steps:
+      - name: Resolve version
+        id: v
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          FILE_ID: ${{ vars[matrix.file_id_var] }}
+          MOD_ID: ${{ vars.NEXUS_MOD_ID }}
+          HAS_KEY: ${{ secrets.NEXUSMODS_API_KEY != '' }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::unexpected tag '$TAG'"; exit 1; }
+          [ "$HAS_KEY" = "true" ] || { echo "::error::secret NEXUSMODS_API_KEY is not set"; exit 1; }
+          [ -n "$FILE_ID" ] || { echo "::error::variable ${{ matrix.file_id_var }} is not set"; exit 1; }
+          [ -n "$MOD_ID" ] || { echo "::error::variable NEXUS_MOD_ID is not set"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "file=TowerDominion-LeakFix-${TAG#v}-${{ matrix.asset }}.zip" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.v.outputs.tag }}
+          sparse-checkout: CHANGELOG.md
+          sparse-checkout-cone-mode: false
+
+      - name: Download release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ steps.v.outputs.tag }}" --repo "$GITHUB_REPOSITORY" \
+            --pattern "${{ steps.v.outputs.file }}"
+          unzip -l "${{ steps.v.outputs.file }}"
+
+      # The changelog and the mod's version are set once, from the first upload, so they aren't repeated per file.
+      - name: Changelog for this version
+        id: changelog
+        if: matrix.primary
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          text=$(awk -v h="## $VERSION" '$0 == h {on=1; next} /^## / {on=0} on' CHANGELOG.md | sed '/^$/d')
+          [ -n "$text" ] || { echo "::error::no '## $VERSION' section in CHANGELOG.md"; exit 1; }
+          { echo "text<<CHANGELOG_EOF"; echo "$text"; echo "CHANGELOG_EOF"; } >> "$GITHUB_OUTPUT"
+
+      - name: Upload to Nexus Mods
+        id: upload
+        uses: Nexus-Mods/upload-action@98532f7670c27cbecc78fae03fa3e278147827e2 # v1.0.0-beta.11
+        with:
+          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
+          file_id: ${{ vars[matrix.file_id_var] }}
+          filename: ${{ steps.v.outputs.file }}
+          version: ${{ steps.v.outputs.version }}
+          display_name: ${{ matrix.display_name }}
+          description: ${{ matrix.description }}
+          category: main
+          archive_existing_version: true
+          update_mod_version: ${{ matrix.primary }}
+          mod_id: ${{ matrix.primary && vars.NEXUS_MOD_ID || '' }}
+          changelog: ${{ matrix.primary && steps.changelog.outputs.text || '' }}
+
+      - name: Summary
+        run: echo "Uploaded ${{ steps.v.outputs.file }} as Nexus version ${{ steps.upload.outputs.version_id }}" >> "$GITHUB_STEP_SUMMARY"

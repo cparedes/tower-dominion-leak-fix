@@ -1,0 +1,98 @@
+[size=5][b]Tower Dominion Leak Fix[/b][/size]
+[size=3]Unofficial fixes for the [b]frame rate sinking in long games[/b], [b]stutters[/b], [b]sounds going silent[/b] and [b]memory leaks[/b]. Works with [b]BepInEx 6[/b] or [b]MelonLoader[/b].[/size]
+
+Six independent fixes, each a separate DLL, so you can leave out any you don't want. [b]No gameplay changes:[/b] they only clean up objects the game has already discarded and skip redundant work. Your saves, balance and online features are untouched.
+
+[quote][b]AI-generated content:[/b] the investigation, code and documentation for this mod were produced with Claude (Anthropic) using Claude Code, directed and play-tested by the uploader. Source code is public on [url=https://github.com/cparedes/tower-dominion-leak-fix]GitHub[/url] (MIT license). Review it as you would any mod.[/quote]
+
+[line]
+
+[size=4][b]What it fixes[/b][/size]
+
+[b]1. Frame rate sinks the longer a game goes on[/b] — [i]AreaOfEffectLeakFix[/i] (new in 1.4.0)
+Every bomb impact left one live area-of-effect object behind: the game stops tracking it before it asks to be deleted, so the request is ignored. Each one keeps an audio source, and Unity's audio mixer checks all of them every frame at a cost that grows with the square of their number. After about an hour of bomber waves the game's main thread spent ~80% of its time on that check while the GPU sat mostly idle. The fix hands those objects back to the game's normal cleanup.
+[list]
+[*]Leftover bomb objects: [b]348 after 16 min → 0[/b]
+[*]Main-thread time in the audio mixer check: [b]6–10% from 15 min on (~80% after an hour) → 0–2%[/b] over 58 min
+[/list]
+
+[b]2. Stutter when selecting a building, plus recurring ~66 ms hitches[/b] — [i]ManagedDataCacheFix[/i]
+The game's settings-data lookup reloads its data asset and re-checks every entry on every read (~5 ms each). Opening the building panel does this about 11 times.
+[list]
+[*]Opening the building panel: [b]40–65 ms → 1–2 ms[/b]
+[*]Frames of 50 ms or more over the same ~4.5 minutes of play: [b]21 → 0[/b]
+[/list]
+
+[b]3. Hitch right after deselecting a building or closing a panel[/b] — [i]AssetUnloadThrottleFix[/i]
+Every time a UI panel closes, the game asks Unity to scan all ~70,000 loaded objects for unused assets (20–30 ms each, 26 times in 4 minutes). The fix allows one real cleanup every 5 minutes instead.
+[list]
+[*]Hitches of 25 ms or more per minute: [b]6.8 → 1.1[/b]
+[*]Worst frame: [b]214 ms → 45 ms[/b]
+[/list]
+
+[b]4. UI sounds stop playing after a while (reroll, click, hover, select…)[/b] — [i]AudioInstanceLeakFix[/i]
+Each sound may play at most 5 copies at once. When a button or panel hides mid-sound, the game never counts that copy as finished, so the sound eventually hits its cap and goes silent for the rest of the session.
+[list]
+[*]After 41 minutes without the fix, [b]7 UI sounds[/b] were permanently silent. With it, every counter stays at 0 between plays.
+[/list]
+
+[b]5. Enemy objects leak every wave[/b] — [i]EnemyPoolLeakFix[/i]
+Between waves the game shrinks its enemy pools, but never actually deletes the dropped enemies. They pile up with their effects, materials and audio, and memory and garbage-collection pauses grow over a long run.
+[list]
+[*]Enemy objects after 26 minutes: [b]2,516 (still climbing) → rises and falls with wave size (~240–600)[/b]
+[/list]
+
+[b]6. Duplicate unlock-condition listeners[/b] — [i]UnlockConditionLeakFix[/i]
+Loading your save creates a second, orphaned copy of every unlock condition that keeps reacting to game events all session.
+[list]
+[*]Listeners on a 130-condition save: [b]260 → 130[/b]
+[/list]
+
+All numbers come from real play sessions on Steam build 22911335, measured with a diagnostic mod.
+
+[line]
+
+[size=4][b]Installation[/b][/size]
+
+Use [b]one[/b] mod loader: BepInEx [b]or[/b] MelonLoader, not both. Open the game folder: in Steam, right-click Tower Dominion → [i]Manage[/i] → [i]Browse local files[/i].
+
+[b]MelonLoader[/b]
+[list=1]
+[*]Install [url=https://github.com/LavaGang/MelonLoader/releases]MelonLoader[/url] 0.6 or newer (tested with 0.7.3) and launch the game once.
+[*]Download the [b]MelonLoader version[/b] from the Files tab and extract it into the game folder. The DLLs go into [i]Mods/[/i].
+[*]Launch. The MelonLoader console should show the six fixes and "6 Mods loaded."
+[/list]
+
+[b]BepInEx[/b]
+[list=1]
+[*]If you don't have it yet, install [url=https://builds.bepinex.dev/projects/bepinex_be]BepInEx 6 (IL2CPP, win-x64)[/url] (tested with 6.0.0-be.788), or download the [b]BepInEx bundle[/b] from the Files tab.
+[*]Download the [b]BepInEx version[/b] and extract it into the game folder. The DLLs go into [i]BepInEx/plugins/[/i].
+[*]Launch. The first launch with BepInEx takes a minute or two. [i]BepInEx/LogOutput.log[/i] should show a "Loading [...]" line for each fix.
+[/list]
+
+[b]Uninstall:[/b] delete EnemyPoolLeakFix.dll, UnlockConditionLeakFix.dll, AudioInstanceLeakFix.dll, ManagedDataCacheFix.dll, AssetUnloadThrottleFix.dll and AreaOfEffectLeakFix.dll from [i]Mods/[/i] or [i]BepInEx/plugins/[/i].
+
+[line]
+
+[size=4][b]Settings[/b][/size]
+
+Created on first launch: [i]BepInEx/config/community.towerdominion.*.cfg[/i] (BepInEx) or [i]UserData/MelonPreferences.cfg[/i] (MelonLoader).
+[list]
+[*][b]AreaOfEffectLeakFix[/b] — LogRequeued (true): log how many leftover objects were handed back for cleanup, at most once a minute.
+[*][b]AssetUnloadThrottleFix[/b] — MinIntervalSeconds (300): minimum time between real asset cleanups. Lower it if memory is tight.
+[*][b]AudioInstanceLeakFix[/b] — SweepSeconds (1), SilentGraceSeconds (5), LogReleases (true)
+[*][b]ManagedDataCacheFix[/b] — RefreshSeconds (0 = only refresh on first use and scene changes)
+[*][b]UnlockConditionLeakFix[/b] — SweepSeconds (30)
+[*][b]EnemyPoolLeakFix[/b] — LogDestroyed (true)
+[/list]
+
+[line]
+
+[size=4][b]Compatibility & notes[/b][/size]
+[list]
+[*]Tested with Tower Dominion Steam build 22911335 (Unity 2022.3.62f2). The fixes hook game methods by name, so small game updates usually don't break them. If the developers fix these bugs upstream, the mod becomes unnecessary.
+[*]AssetUnloadThrottleFix keeps assets from closed panels in memory up to 5 minutes longer before they're freed.
+[*]Not made or endorsed by Parallel 45 Games, Broken Spear or Nvizzio Creations.
+[/list]
+
+[b]Source, issues and full technical write-up:[/b] [url=https://github.com/cparedes/tower-dominion-leak-fix]github.com/cparedes/tower-dominion-leak-fix[/url]

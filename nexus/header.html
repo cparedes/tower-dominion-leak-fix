@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Leak Fix Header</title>
+<style>
+  :root {
+    --page: #0d0d0d;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --baseline: #383835;
+    --before: #256abf;   /* blue 500, recessive */
+    --after: #6da7ec;    /* blue 300, emphasis */
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1300px; height: 372px; background: var(--page); overflow: hidden; }
+  body { font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; color: var(--text-primary); position: relative; }
+  svg { position: absolute; inset: 0; }
+  /* Text block sits inside a centered ~1040px safe zone so responsive cropping keeps it. */
+  .text { position: absolute; left: 130px; top: 78px; width: 540px; }
+  body.clean .text, body.clean .legend { display: none; }
+  .tag { display: inline-block; font-size: 15px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 14px; }
+  h1 { font-size: 54px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.02; }
+  .sub { margin-top: 14px; font-size: 22px; color: var(--text-secondary); line-height: 1.35; }
+  .badges { margin-top: 22px; display: flex; gap: 10px; }
+  .badge { font-size: 15px; font-weight: 600; color: var(--text-primary); border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; padding: 5px 14px; }
+  .legend { position: absolute; right: 130px; bottom: 30px; font-size: 14px; color: var(--text-muted); display: flex; gap: 18px; align-items: center; }
+  .legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+</style>
+</head>
+<body>
+<svg id="trace" width="1300" height="372" viewBox="0 0 1300 372"></svg>
+<div class="text">
+  <span class="tag">Unofficial community fix</span>
+  <h1>Tower Dominion<br>Leak Fix</h1>
+  <div class="sub">Stutters, silent sounds &amp; memory leaks, fixed</div>
+  <div class="badges"><span class="badge">BepInEx 6</span><span class="badge">MelonLoader</span></div>
+</div>
+<div class="legend"><span><i style="background:var(--before)"></i>frame time before</span><span><i style="background:var(--after)"></i>with the fix</span></div>
+<script>
+  if (location.hash === "#clean") document.body.classList.add("clean");
+  // Stylized frame-time trace in the right half: spiky (before), then flat (after).
+  // Spike sizes echo measured hitches (~66 ms selects, 20-30 ms unloads, one 214 ms worst frame).
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const base = 262, scale = 1.0;           // y of the 16.7 ms line, px per ms
+  const y = ms => base - (ms - 16.7) * scale;
+  const start = 600, split = 948, end = 1300, step = 6;
+  const spikes = { 636: 28, 666: 66, 702: 24, 744: 214, 780: 30, 816: 66, 846: 26, 882: 66, 906: 22, 924: 45 };
+  const before = [], after = [];
+  for (let x = start; x <= split; x += step) before.push([x, y(spikes[x] ?? 16.7 + rnd() * 5)]);
+  for (let x = split; x <= end; x += step) after.push([x, y(16.7 + rnd() * 1.6)]);
+  const path = pts => pts.map((p, i) => (i ? "L" : "M") + p[0] + " " + p[1].toFixed(1)).join(" ");
+  const svg = document.getElementById("trace");
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="fade" x1="0" x2="1" y1="0" y2="0">
+        <stop offset="0.46" stop-color="#0d0d0d" stop-opacity="1"/>
+        <stop offset="0.54" stop-color="#0d0d0d" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <line x1="600" x2="1300" y1="${base}" y2="${base}" stroke="#383835" stroke-width="1"/>
+    <path d="${path(before)}" fill="none" stroke="#256abf" stroke-width="2" stroke-linejoin="round"/>
+    <path d="${path(after)}" fill="none" stroke="#6da7ec" stroke-width="2.5" stroke-linejoin="round"/>
+    <rect x="0" y="0" width="1300" height="372" fill="url(#fade)"/>`;
+</script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tower Dominion Leak Fix</title>
+<style>
+  :root {
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --baseline: #383835;
+    --before: #256abf;   /* blue 500 — recessive */
+    --after: #6da7ec;    /* blue 300 — emphasis */
+    --success: #0ca30c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1280px; height: 720px; background: var(--page); overflow: hidden; }
+  body { font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; color: var(--text-primary); padding: 40px 48px; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 28px; }
+  h1 { font-size: 54px; font-weight: 700; letter-spacing: -0.5px; line-height: 1; }
+  .sub { margin-top: 12px; font-size: 22px; color: var(--text-secondary); }
+  .loaders { text-align: right; font-size: 18px; color: var(--text-secondary); line-height: 1.5; }
+  .loaders b { color: var(--text-primary); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+  .tile { background: var(--surface-1); border: 1px solid rgba(255,255,255,0.10); border-radius: 12px; padding: 20px 22px 22px; height: 238px; display: flex; flex-direction: column; }
+  .label { font-size: 18px; color: var(--text-secondary); line-height: 1.25; height: 46px; }
+  .hero { display: flex; align-items: baseline; gap: 10px; margin: 6px 0 14px; }
+  .hero .after { font-size: 46px; font-weight: 700; line-height: 1; }
+  .hero .was { font-size: 18px; color: var(--text-muted); }
+  .bars { margin-top: auto; display: grid; grid-template-columns: 58px 1fr; row-gap: 10px; align-items: center; }
+  .bars .k { font-size: 14px; color: var(--text-muted); }
+  .track { position: relative; height: 22px; border-left: 2px solid var(--baseline); display: flex; align-items: center; }
+  .bar { height: 10px; border-radius: 0 4px 4px 0; }
+  .bar.before { background: var(--before); }
+  .bar.after { background: var(--after); }
+  footer { margin-top: 18px; font-size: 15px; color: var(--text-muted); }
+  .v { font-size: 14px; color: var(--text-secondary); margin-left: 8px; white-space: nowrap; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Tower Dominion Leak Fix</h1>
+    <div class="sub">Unofficial fixes for stutters, silent sounds &amp; memory leaks</div>
+  </div>
+  <div class="loaders"><b>BepInEx 6</b> &amp; <b>MelonLoader</b><br>5 independent fixes · no gameplay changes</div>
+</header>
+<main class="grid" id="grid"></main>
+<footer>Measured in real play sessions on Steam build 22911335 · each tile uses its own scale</footer>
+<script>
+  // Before/after per item: each tile is its own small multiple with its own scale (units differ).
+  const tiles = [
+    { label: "Opening the building panel", after: "1–2 ms", was: "was 40–65 ms", b: 65, a: 2, bl: "40–65 ms", al: "1–2 ms" },
+    { label: "Frames ≥ 50 ms in 4.5 min of play", after: "0", was: "was 21", b: 21, a: 0, bl: "21", al: "0" },
+    { label: "Hitches ≥ 25 ms per minute", after: "1.1", was: "was 6.8", b: 6.8, a: 1.1, bl: "6.8", al: "1.1" },
+    { label: "Worst frame during play", after: "45 ms", was: "was 214 ms", b: 214, a: 45, bl: "214 ms", al: "45 ms" },
+    { label: "Leaked enemy objects after 26 min", after: "~240", was: "was 2,516", b: 2516, a: 240, bl: "2,516", al: "~240" },
+    { label: "UI sounds stuck silent (41 min)", after: "0", was: "was 7", b: 7, a: 0, bl: "7", al: "0" },
+  ];
+  const max = 210; // px of bar length for the "before" value in every tile
+  const grid = document.getElementById("grid");
+  for (const t of tiles) {
+    const aw = t.a === 0 ? 0 : Math.max(4, Math.round(max * t.a / t.b));
+    grid.insertAdjacentHTML("beforeend", `
+      <section class="tile">
+        <div class="label">${t.label}</div>
+        <div class="hero"><span class="after">${t.after}</span><span class="was">${t.was}</span></div>
+        <div class="bars">
+          <span class="k">Before</span>
+          <div class="track"><div class="bar before" style="width:${max}px"></div><span class="v">${t.bl}</span></div>
+          <span class="k">After</span>
+          <div class="track"><div class="bar after" style="width:${aw}px"></div><span class="v">${t.al}</span></div>
+        </div>
+      </section>`);
+  }
+</script>
+</body>
+</html>
