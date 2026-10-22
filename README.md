@@ -15,6 +15,9 @@ stop playing, and selecting or deselecting a building causes a visible hitch.
 Tested with Tower Dominion Steam build **22911335** (Unity 2022.3.62f2) on BepInEx **6.0.0-be.788** (IL2CPP) and
 MelonLoader **0.7.3**.
 
+**Download:** [GitHub Releases](https://github.com/cparedes/tower-dominion-leak-fix/releases/latest) or
+[Nexus Mods](https://www.nexusmods.com/towerdominion/mods/8).
+
 ## What it fixes
 
 ### 1. Enemy objects are never freed between waves (`EnemyPoolLeakFix`)
