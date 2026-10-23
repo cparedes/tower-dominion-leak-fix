@@ -1,4 +1,5 @@
 # Uploads a GitHub release's three zips to the Nexus Mods page as new versions of the existing file entries.
+# Runs when a release is published by hand, when called by release.yml, or manually with a tag.
 #
 # The zips can't be built in CI (that needs the game's IL2CPP interop assemblies), so this uploads the assets that
 # scripts/package.py produced and that are attached to the release.
@@ -19,6 +20,12 @@ on:
     inputs:
       tag:
         description: Release tag to upload (e.g. v1.4.0)
+        required: true
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to upload (e.g. v1.4.0)
+        type: string
         required: true
 
 permissions:

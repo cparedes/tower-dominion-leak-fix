@@ -1,0 +1,107 @@
+# Cuts a release: works out the next version from Conventional Commits since the last tag (only commits touching what
+# ships in the zips count, see scripts/release.py), bumps the version and CHANGELOG.md, builds and packages both
+# loaders, commits and tags `chore(release): vX.Y.Z`, publishes the GitHub release and uploads it to Nexus Mods.
+#
+# Started by hand (Actions → Release → Run workflow) so a release only happens after the changes are play-tested.
+# Use "dry run" to see the version and get the zips as a workflow artifact without committing or publishing anything.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump (auto = from Conventional Commits)
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+      dry_run:
+        description: Dry run (build and package only; no commit, tag, release or upload)
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Plan
+        id: plan
+        run: |
+          python3 scripts/release.py plan --bump "${{ inputs.bump }}" --github-output | tee plan.txt
+          { echo '### Release plan'; echo '```'; cat plan.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Nothing to release
+        if: steps.plan.outputs.version == ''
+        run: echo "::notice::No commits touch packaged files since ${{ steps.plan.outputs.last_tag }}; nothing to release."
+
+      - uses: actions/checkout@v4
+        if: steps.plan.outputs.version
+        with:
+          repository: cparedes/tower-dominion-refs
+          ssh-key: ${{ secrets.REFS_SSH_KEY }}
+          path: refs
+
+      - uses: actions/setup-dotnet@v4
+        if: steps.plan.outputs.version
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Bump version and changelog
+        if: steps.plan.outputs.version
+        run: python3 scripts/release.py apply --version "${{ steps.plan.outputs.version }}" --notes release-notes.md
+
+      - name: Build and package
+        if: steps.plan.outputs.version
+        env:
+          TOWER_DOMINION_DIR: ${{ github.workspace }}/refs
+        run: python3 scripts/package.py
+
+      - name: Upload zips (dry run)
+        if: steps.plan.outputs.version && inputs.dry_run
+        uses: actions/upload-artifact@v4
+        with:
+          name: TowerDominion-LeakFix-${{ steps.plan.outputs.version }}-dry-run
+          path: |
+            dist/*.zip
+            release-notes.md
+
+      - name: Commit, tag and publish
+        if: steps.plan.outputs.version && !inputs.dry_run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Directory.Build.props CHANGELOG.md src/*/Plugin.cs
+          git commit -m "chore(release): v$VERSION"
+          git tag "v$VERSION"
+          git push origin HEAD:main "v$VERSION"
+          gh release create "v$VERSION" --title "Tower Dominion Leak Fix $VERSION" --notes-file release-notes.md \
+            "dist/TowerDominion-LeakFix-$VERSION-plugins.zip" \
+            "dist/TowerDominion-LeakFix-$VERSION-with-BepInEx.zip" \
+            "dist/TowerDominion-LeakFix-$VERSION-melonloader.zip"
+          echo "Published [v$VERSION](https://github.com/${{ github.repository }}/releases/tag/v$VERSION)" >> "$GITHUB_STEP_SUMMARY"
+
+  # A release created with GITHUB_TOKEN doesn't fire `release: published`, so the upload is chained here instead.
+  nexus:
+    needs: release
+    if: needs.release.outputs.version && !inputs.dry_run
+    permissions:
+      contents: read
+    uses: ./.github/workflows/nexus-upload.yml
+    with:
+      tag: v${{ needs.release.outputs.version }}
+    secrets: inherit
