@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Enforces Conventional Commits (https://www.conventionalcommits.org) for the subject line; scripts/release.py uses
+# them to pick the next version. Enable once per clone: git config core.hooksPath .githooks
+subject=$(grep -v '^#' "$1" | head -n1)
+types='feat|fix|perf|refactor|build|ci|docs|test|style|chore|revert'
+if [[ "$subject" =~ ^($types)(\([a-z0-9._/-]+\))?!?:\ .+ ]] || [[ "$subject" =~ ^(Merge|Revert\ \"|fixup!|squash!|amend!) ]]; then
+  exit 0
+fi
+cat >&2 <<MSG
+commit-msg: subject isn't a Conventional Commit:
+  $subject
+Use "<type>(<optional scope>): <description>", e.g.
+  fix(audio): release counters when a sound object is destroyed
+  feat(aoe): add LogRequeued setting
+  ci: cache NuGet packages
+Types: ${types//|/, }. Add "!" after the type/scope or a "BREAKING CHANGE:" footer for breaking changes.
+Only commits touching src/, Directory.Build.props, docs/INSTALL.txt or LICENSE change the version.
+MSG
+exit 1

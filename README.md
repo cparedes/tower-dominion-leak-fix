@@ -184,6 +184,34 @@ dotnet build -c Release -p:Loader=MelonLoader -p:MelonLoaderRefs=/path/to/refs
 python3 scripts/package.py [--melonloader-refs DIR]      # all three release zips into dist/
 ```
 
+## Commits and releases
+
+Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org): `fix(audio): …`, `feat(aoe): …`,
+`ci: …`, with `!` or a `BREAKING CHANGE:` footer for breaking changes. Enable the check once per clone with
+`git config core.hooksPath .githooks`.
+
+Versions follow semver, worked out by `scripts/release.py` from the commits since the last tag. **Only commits that
+change what ships in the zips count:** `src/`, `Directory.Build.props`, `docs/INSTALL.txt` and `LICENSE`. CI,
+tooling, README and Nexus-page changes never bump the version. Among the commits that count, a breaking change bumps
+major, `feat` bumps minor and anything else bumps patch.
+
+```bash
+python3 scripts/release.py plan          # what the next version would be, and why
+```
+
+Releasing is done in GitHub Actions once the changes have been play-tested:
+
+1. **CI** (`ci.yml`) builds both loaders on every push and pull request and shows the next version in the run summary.
+2. **Actions → Release → Run workflow** (`release.yml`) bumps the version in `Directory.Build.props` and every plugin,
+   adds a CHANGELOG section generated from the commits, builds and packages the three zips, commits and tags
+   `chore(release): vX.Y.Z`, publishes the GitHub release and uploads the zips to Nexus Mods (`nexus-upload.yml`).
+   *Dry run* builds the zips as a workflow artifact without publishing anything. *Bump* forces a level, for example
+   to ship a change outside the packaged paths, such as a newer bundled BepInEx.
+
+CI compiles against a private repository of the loader and game interop assemblies (the interop assemblies are
+generated from the game, so they aren't published here). Refresh it after a game, BepInEx or MelonLoader update with
+`scripts/update_refs.sh`.
+
 ## How this was made
 
 These fixes were found and written by Claude (Anthropic's AI model, running in Claude Code), working with
