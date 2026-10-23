@@ -36,10 +36,11 @@ def last_tag():
     return tags[0] if tags else None
 
 
-def commits_since(tag):
-    """Commits since `tag` that touch PACKAGED paths, oldest first: (sha, subject, body)."""
+def commits_since(tag, packaged_only=True):
+    """Commits since `tag` (touching PACKAGED paths unless packaged_only is False), oldest first: (sha, subject, body)."""
     rng = f"{tag}..HEAD" if tag else "HEAD"
-    out = git("log", "--reverse", "--format=%H%x1f%s%x1f%b%x1e", rng, "--", *PACKAGED)
+    paths = ["--", *PACKAGED] if packaged_only else []
+    out = git("log", "--reverse", "--format=%H%x1f%s%x1f%b%x1e", rng, *paths)
     commits = []
     for rec in out.split("\x1e"):
         rec = rec.strip("\n")
@@ -113,14 +114,26 @@ def plan(args):
 
 def changelog_section(version, tag):
     groups = {key: [] for key, _ in SECTIONS}
-    for sha, subject, body in commits_since(tag):
-        kind, b, text = classify(subject, body)
-        if b != "none":
-            groups[kind].append(f"- {text} ({sha[:7]})")
+
+    def collect(commits, skip_types=()):
+        for sha, subject, body in commits:
+            m = CONVENTIONAL.match(subject)
+            if m and m["type"] in skip_types:
+                continue
+            kind, b, text = classify(subject, body)
+            if b != "none":
+                groups[kind].append(f"- {text} ({sha[:7]})")
+
+    collect(commits_since(tag))
+    if not any(groups.values()):
+        # A forced bump with no packaged changes (e.g. a newer bundled BepInEx): list the other relevant commits.
+        collect(commits_since(tag, packaged_only=False), skip_types=("ci", "docs", "test", "style"))
     lines = [f"## {version}"]
     for key, title in SECTIONS:
         if groups[key]:
             lines += ["", f"### {title}", *groups[key]]
+    if not any(groups.values()):
+        lines += ["", "- Rebuild with no changes to the fixes."]
     return "\n".join(lines) + "\n"
 
 
