@@ -31,7 +31,7 @@ jobs:
     outputs:
       version: ${{ steps.plan.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
@@ -46,14 +46,14 @@ jobs:
         if: steps.plan.outputs.version == ''
         run: echo "::notice::No commits touch packaged files since ${{ steps.plan.outputs.last_tag }}; nothing to release."
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.plan.outputs.version
         with:
           repository: cparedes/tower-dominion-refs
           ssh-key: ${{ secrets.REFS_SSH_KEY }}
           path: refs
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         if: steps.plan.outputs.version
         with:
           dotnet-version: 8.0.x
@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload zips (dry run)
         if: steps.plan.outputs.version && inputs.dry_run
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: TowerDominion-LeakFix-${{ steps.plan.outputs.version }}-dry-run
           path: |

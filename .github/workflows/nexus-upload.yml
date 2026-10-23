@@ -82,7 +82,7 @@ jobs:
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
           echo "file=TowerDominion-LeakFix-${TAG#v}-${{ matrix.asset }}.zip" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ steps.v.outputs.tag }}
           sparse-checkout: CHANGELOG.md
