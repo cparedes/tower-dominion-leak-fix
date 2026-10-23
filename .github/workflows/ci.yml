@@ -1,0 +1,59 @@
+# Compile check for every push and pull request, plus a preview of the next release version on main.
+# Builds both loaders against the private build references (cparedes/tower-dominion-refs, read with the REFS_SSH_KEY
+# deploy key). Pull requests from forks have no access to that key, so their build is skipped.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check build-reference access
+        id: refs
+        env:
+          HAS_KEY: ${{ secrets.REFS_SSH_KEY != '' }}
+        run: |
+          if [ "$HAS_KEY" = "true" ]; then echo "available=true" >> "$GITHUB_OUTPUT"
+          else echo "::notice::REFS_SSH_KEY isn't available (fork pull request?), skipping the build"; fi
+
+      - uses: actions/checkout@v4
+        if: steps.refs.outputs.available
+        with:
+          repository: cparedes/tower-dominion-refs
+          ssh-key: ${{ secrets.REFS_SSH_KEY }}
+          path: refs
+
+      - uses: actions/setup-dotnet@v4
+        if: steps.refs.outputs.available
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build (BepInEx and MelonLoader)
+        if: steps.refs.outputs.available
+        env:
+          TOWER_DOMINION_DIR: ${{ github.workspace }}/refs
+        run: |
+          dotnet build TowerDominionLeakFix.sln -c Release -p:Loader=BepInEx
+          dotnet build TowerDominionLeakFix.sln -c Release -p:Loader=MelonLoader
+
+      - name: Next release preview
+        run: |
+          {
+            echo '### Next release'
+            echo '```'
+            python3 scripts/release.py plan
+            echo '```'
+            echo 'Release with **Actions → Release → Run workflow** once the changes are play-tested.'
+          } >> "$GITHUB_STEP_SUMMARY"
+          python3 scripts/release.py plan
